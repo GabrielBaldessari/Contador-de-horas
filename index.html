@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Aplicación para contar tus horas trabajadas y calcular ganancias como monotributista. Sencilla, rápida y privada.">
+    <title>Contador de Horas | Monotributista</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Google Fonts for Typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- html2pdf.js for Invoice Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="glass-panel main-header">
+            <div class="header-content">
+                <h1>Mis Horas</h1>
+                <div class="rate-config">
+                    <label for="hourlyRateInput">Valor por Hora ($):</label>
+                    <input type="number" id="hourlyRateInput" placeholder="Ej. 15000" min="0" step="100">
+                    <button id="saveRateBtn" class="btn-secondary">Guardar</button>
+                    <span id="rateSavedMsg" class="success-msg hidden">¡Guardado!</span>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <!-- Dashboard Summary -->
+            <section class="dashboard">
+                <div class="glass-card stat-card">
+                    <h3>Total Horas</h3>
+                    <p class="stat-value" id="totalHoursDisplay">0</p>
+                </div>
+                <div class="glass-card stat-card highlight">
+                    <h3>Ganancia Acumulada</h3>
+                    <p class="stat-value" id="totalEarningsDisplay">$ 0.00</p>
+                </div>
+            </section>
+
+            <!-- Form to add hours -->
+            <section class="add-hours glass-panel">
+                <h2>Registrar Jornada</h2>
+                <form id="logHoursForm" class="log-form">
+                    <div class="input-group">
+                        <label for="dateInput">Fecha</label>
+                        <input type="date" id="dateInput" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="hoursInput">Horas Trabajadas</label>
+                        <input type="number" id="hoursInput" placeholder="Ej. 8" min="0.5" step="0.5" required>
+                    </div>
+                    <button type="submit" class="btn-primary">Añadir Registro</button>
+                </form>
+            </section>
+
+            <!-- Recent Logs -->
+            <section class="logs-section glass-panel">
+                <h2>Historial de Registros</h2>
+                <div class="table-container">
+                    <table id="logsTable">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Horas</th>
+                                <th>Ganancia</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logsTableBody">
+                            <!-- Logs will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="emptyState" class="empty-state hidden">
+                    <p>Aún no hay registros. ¡Empieza a trabajar!</p>
+                </div>
+            </section>
+
+            <!-- Facturación -->
+            <section class="invoice-section glass-panel">
+                <h2>Facturación Mensual</h2>
+                <div class="invoice-actions" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                    <div class="input-group" style="flex: 1; margin-bottom: 0;">
+                        <label for="invoiceMonth">Seleccionar Mes</label>
+                        <select id="invoiceMonth" style="width: 100%; border-radius: 8px; padding: 0.8rem; background: rgba(0,0,0,0.3); color:white; border: 1px solid rgba(255,255,255,0.1); font-family: inherit;">
+                            <option value="">No hay registros</option>
+                        </select>
+                    </div>
+                    <button id="generateInvoiceBtn" class="btn-primary" style="white-space: nowrap;">Descargar Factura PDF</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Hidden Invoice Template -->
+    <div id="invoiceTemplate" style="display: none;">
+        <div id="invoiceContent" style="padding: 40px; font-family: 'Inter', sans-serif; color: #1e293b; background: #ffffff; width: 800px; box-sizing: border-box;">
+            <h1 style="color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-bottom: 20px;">Reporte de Honorarios</h1>
+            <div style="margin-bottom: 30px; line-height: 1.6; font-size: 15px;">
+                <p><strong>Fecha de Emisión:</strong> <span id="invDateOptions"></span></p>
+                <p><strong>Período Liquidado:</strong> <span id="invPeriod"></span></p>
+            </div>
+            
+            <table style="width: 100%; border-collapse: collapse; margin-top: 20px; text-align: left; font-size: 15px;">
+                <thead>
+                    <tr style="background: #f1f5f9; color: #334155;">
+                        <th style="padding: 12px; border: 1px solid #cbd5e1;">Descripción</th>
+                        <th style="padding: 12px; border: 1px solid #cbd5e1;">Horas Totales</th>
+                        <th style="padding: 12px; border: 1px solid #cbd5e1;">Valor por Hora</th>
+                        <th style="padding: 12px; border: 1px solid #cbd5e1;">Subtotal a Pagar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #cbd5e1;">Servicios Prestados (Monotributo)</td>
+                        <td style="padding: 12px; border: 1px solid #cbd5e1;" id="invHoras"></td>
+                        <td style="padding: 12px; border: 1px solid #cbd5e1;" id="invValor"></td>
+                        <td style="padding: 12px; border: 1px solid #cbd5e1; font-weight: bold;" id="invSubtotal"></td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div style="margin-top: 40px; text-align: right;">
+                <h2 style="font-size: 24px; color: #0f172a;">TOTAL DEL MES: <span id="invTotal" style="color: #3b82f6;"></span></h2>
+            </div>
+            
+            <div style="margin-top: 60px; font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px;">
+                Documento generado automáticamente a través de la aplicación "Contador de Horas".
+            </div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
