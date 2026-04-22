@@ -352,4 +352,4 @@ function setDefaultDate() {
 }
 
 // ====== START APP ======
-document.addEventListener('DOMContentLoaded', init);
+init();
