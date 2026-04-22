@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
 // ====== FIREBASE SETUP ======
 const firebaseConfig = {
@@ -18,6 +18,7 @@ const db = getFirestore(app);
 
 // ====== APP STATE ======
 let currentUser = null;
+let cloudListener = null;
 
 const state = {
     hourlyRate: 0,
@@ -76,6 +77,7 @@ function init() {
             await loadDataFromCloud();
             updateUI();
         } else {
+            if (cloudListener) cloudListener(); // kill connection on logout
             currentUser = null;
             DOM.loginScreen.classList.remove('hidden');
             DOM.appContainer.classList.add('hidden');
@@ -91,32 +93,53 @@ function init() {
 // ====== DATA MANAGEMENT (FIRESTORE) ======
 async function loadDataFromCloud() {
     if (!currentUser) return;
+    
+    // Clear any previous listeners
+    if (cloudListener) cloudListener();
+    
     try {
         const docRef = doc(db, 'users', currentUser.uid);
         const snapshot = await getDoc(docRef);
         
-        if (snapshot.exists()) {
-            const data = snapshot.data();
-            state.hourlyRate = data.hourlyRate || 0;
-            state.logs = data.logs || [];
-        } else {
-            // First time logic, try to migrate from localStorage if available
+        // Logical migration only on first read:
+        if (!snapshot.exists()) {
             const localRate = localStorage.getItem('hourlyRate');
             const localLogs = localStorage.getItem('logs');
             if (localLogs) {
                 state.hourlyRate = parseFloat(localRate) || 0;
                 state.logs = JSON.parse(localLogs) || [];
-                // Migrate to Firebase and wipe local so it doesn't bleed into other Google accounts
+                // Save immediately so snapshot catches it right after
                 await saveToCloud();
                 localStorage.removeItem('hourlyRate');
                 localStorage.removeItem('logs');
             } else {
                 state.hourlyRate = 0;
                 state.logs = [];
+                // Create explicitly so the listener binds properly
+                await saveToCloud(); 
             }
         }
         
-        DOM.hourlyRateInput.value = state.hourlyRate || '';
+        // Empezar a escuchar en "Tiempo Real" (Magia Pura)
+        cloudListener = onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                
+                // Set memory state
+                state.hourlyRate = data.hourlyRate || 0;
+                state.logs = data.logs || [];
+                
+                // Do not override user input while they type the Rate, if currently focused
+                const isRateInputFocused = document.activeElement === DOM.hourlyRateInput;
+                if (!isRateInputFocused) {
+                    DOM.hourlyRateInput.value = state.hourlyRate || '';
+                }
+                
+                // Update table visibly instantly!
+                updateUI();
+            }
+        });
+        
     } catch (e) {
         console.error("Error cargando datos de Firebase", e);
     }
