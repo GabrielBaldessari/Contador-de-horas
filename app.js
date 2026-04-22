@@ -33,7 +33,6 @@ const DOM = {
     userProfileInfo: document.getElementById('userProfileInfo'),
     userProfileImg: document.getElementById('userProfileImg'),
     forceSyncBtn: document.getElementById('forceSyncBtn'),
-    syncText: document.getElementById('syncText'),
     
     hourlyRateInput: document.getElementById('hourlyRateInput'),
     saveRateBtn: document.getElementById('saveRateBtn'),
@@ -164,22 +163,28 @@ function setupEventListeners() {
     
     if(DOM.forceSyncBtn) {
         DOM.forceSyncBtn.addEventListener('click', async () => {
-            const originalText = DOM.syncText.innerText;
-            DOM.syncText.innerText = "Guardando...";
             DOM.forceSyncBtn.disabled = true;
-            DOM.forceSyncBtn.style.opacity = '0.7';
+            DOM.forceSyncBtn.style.opacity = '0.5';
             
-            await saveToCloud();
+            // Promise wrapper with a timeout so it never gets stuck forever if firebase offline mode hangs
+            try {
+                await Promise.race([
+                    saveToCloud(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+                ]);
+            } catch(e) {
+                console.log("Sync delay/timeout caught intentionally or Firebase error");
+            }
             
-            DOM.syncText.innerText = "¡Listo!";
-            DOM.syncText.style.color = "#10b981"; // success green
+            DOM.forceSyncBtn.style.color = '#10b981'; // Poner en verde sutilmente
+            DOM.forceSyncBtn.style.borderColor = '#10b981';
+            DOM.forceSyncBtn.style.opacity = '1';
             
             setTimeout(() => {
-                DOM.syncText.innerText = originalText;
-                DOM.syncText.style.color = "";
+                DOM.forceSyncBtn.style.color = '';
+                DOM.forceSyncBtn.style.borderColor = '';
                 DOM.forceSyncBtn.disabled = false;
-                DOM.forceSyncBtn.style.opacity = '1';
-            }, 2500);
+            }, 1000);
         });
     }
 }
