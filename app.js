@@ -163,10 +163,17 @@ function handleGenerateInvoice() {
     const mName = new Date(year, parseInt(month) - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
     const formatter = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
 
-    // Generar la estructura fuera del DOM visible para evitar bugs originados por Scroll o Viewport de html2canvas
+    // Generar la estructura unida al DOM pero invisible para garantizar render exacto
     const printElement = document.createElement('div');
+    printElement.style.position = 'fixed'; // Elimina bugs de scrollY
+    printElement.style.top = '0';
+    printElement.style.left = '0';
+    printElement.style.width = '794px'; // Ancho de A4 a 96DPI
+    printElement.style.background = '#ffffff';
+    printElement.style.zIndex = '-9999'; // Oculto detrás de la app real
+    
     printElement.innerHTML = `
-        <div style="padding: 40px; font-family: 'Inter', sans-serif; color: #1e293b; background: #ffffff; width: 700px; box-sizing: border-box; text-align: left;">
+        <div style="padding: 40px; font-family: 'Inter', sans-serif; color: #1e293b; text-align: left; background: #ffffff;">
             <div style="font-size: 28px; font-weight: bold; color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-bottom: 20px;">Reporte de Honorarios</div>
             <div style="margin-bottom: 30px; line-height: 1.6; font-size: 14px;">
                 <p style="margin: 0;"><strong>Fecha de Emisión:</strong> <span>${new Date().toLocaleDateString('es-AR')}</span></p>
@@ -201,16 +208,27 @@ function handleGenerateInvoice() {
             </div>
         </div>
     `;
+
+    document.body.appendChild(printElement); // Lo atamos al DOM principal
     
+    // Configuración robusta para evitar recorte
     const opt = {
-        margin:       [0.5, 0.5],
+        margin:       0.5, // 0.5 pulgadas para márgenes reales
         filename:     `Factura_${selectedMonth}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true },
+        image:        { type: 'jpeg', quality: 1.0 },
+        html2canvas:  { 
+            scale: 2, 
+            useCORS: true, 
+            scrollY: 0, // Ignora el scroll actual
+            windowWidth: 794 // Asegura medidas base de lienzo 
+        },
         jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
     };
     
-    html2pdf().set(opt).from(printElement.firstElementChild).save();
+    html2pdf().set(opt).from(printElement).save().then(() => {
+        // Limpiamos el DOM oculto una vez generado
+        document.body.removeChild(printElement);
+    });
 }
 
 function renderDashboard() {
