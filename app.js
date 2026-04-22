@@ -163,18 +163,11 @@ function handleGenerateInvoice() {
     const mName = new Date(year, parseInt(month) - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
     const formatter = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
 
-    // Construiremos el elemento visiblemente sobre el DOM, pero forzaremos estar arriba. 
-    // Esto asegura que la librería "Corte" exactamente lo que ve sin estar tapado ni recortado.
-    const printElement = document.createElement('div');
-    printElement.style.position = 'absolute';
-    printElement.style.top = '0';
-    printElement.style.left = '0';
-    printElement.style.width = '794px'; 
-    printElement.style.background = '#ffffff';
-    printElement.style.zIndex = '99999'; // Lo ponemos arriba de todo para que no lo tape el fondo del body
-    
-    printElement.innerHTML = `
-        <div style="padding: 40px; font-family: 'Inter', sans-serif; color: #1e293b; text-align: left; background: #ffffff;">
+    const printArea = document.getElementById('invoicePrintArea');
+    if(!printArea) return;
+
+    printArea.innerHTML = `
+        <div style="font-family: 'Inter', sans-serif; color: #000; text-align: left; background: #fff;">
             <div style="font-size: 28px; font-weight: bold; color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-bottom: 20px;">Reporte de Honorarios</div>
             <div style="margin-bottom: 30px; line-height: 1.6; font-size: 14px;">
                 <p style="margin: 0;"><strong>Fecha de Emisión:</strong> <span>${new Date().toLocaleDateString('es-AR')}</span></p>
@@ -192,44 +185,28 @@ function handleGenerateInvoice() {
                 </thead>
                 <tbody>
                     <tr>
-                        <td style="padding: 12px; border: 1px solid #cbd5e1;">Servicios Prestados (Monotributo)</td>
-                        <td style="padding: 12px; border: 1px solid #cbd5e1;">${totalHoras} hs</td>
-                        <td style="padding: 12px; border: 1px solid #cbd5e1;">${formatter.format(state.hourlyRate)}</td>
-                        <td style="padding: 12px; border: 1px solid #cbd5e1; font-weight: bold; color: #0f172a;">${formatter.format(subtotal)}</td>
+                        <td style="padding: 12px; border: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1;">Servicios Prestados (Monotributo)</td>
+                        <td style="padding: 12px; border: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1;">${totalHoras} hs</td>
+                        <td style="padding: 12px; border: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1;">${formatter.format(state.hourlyRate)}</td>
+                        <td style="padding: 12px; border: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; font-weight: bold;">${formatter.format(subtotal)}</td>
                     </tr>
                 </tbody>
             </table>
             
             <div style="margin-top: 40px; text-align: right;">
-                <h2 style="font-size: 20px; color: #0f172a; margin: 0;">TOTAL DEL MES: <span style="color: #3b82f6;">${formatter.format(subtotal)}</span></h2>
+                <h2 style="font-size: 20px; margin: 0;">TOTAL DEL MES: <span>${formatter.format(subtotal)}</span></h2>
             </div>
             
-            <div style="margin-top: 60px; font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px;">
-                Documento generado automáticamente a través de la aplicación "Contador de Horas".
+            <div style="margin-top: 60px; font-size: 11px; color: #666; text-align: center; border-top: 1px solid #ccc; padding-top: 10px;">
+                Documento generado a través de la aplicación "Contador de Horas".
             </div>
         </div>
     `;
 
-    document.body.appendChild(printElement);
-    
-    // Guardamos la posición actual
-    const originalScrollY = window.scrollY;
-    // Forzamos ir arriba para pintar limpio
-    window.scrollTo(0, 0);
-
-    const opt = {
-        margin:       [0.5, 0.5],
-        filename:     `Factura_${selectedMonth}.pdf`,
-        image:        { type: 'jpeg', quality: 1.0 },
-        html2canvas:  { scale: 2, useCORS: true, scrollY: 0 },
-        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
-    };
-    
-    html2pdf().set(opt).from(printElement).save().then(() => {
-        document.body.removeChild(printElement);
-        // Regresamos al usuario a donde estaba
-        window.scrollTo(0, originalScrollY);
-    });
+    // Le damos un respiro pequeñito al navegador para que ponga el HTML antes de lanzar el popup nativo de imprimir
+    setTimeout(() => {
+        window.print();
+    }, 150);
 }
 
 function renderDashboard() {

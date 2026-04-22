@@ -6,10 +6,7 @@
     <meta name="description" content="Aplicación para contar tus horas trabajadas y calcular ganancias como monotributista. Sencilla, rápida y privada.">
     <title>Contador de Horas | Monotributista</title>
     <link rel="stylesheet" href="styles.css">
-    <!-- Google Fonts for Typography -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <!-- html2pdf.js for Invoice Generation -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
 <body>
     <div class="app-container">
@@ -93,6 +90,9 @@
             </section>
         </main>
     </div>
+
+    <!-- Contenedor nativo para la impresión PDF -->
+    <div id="invoicePrintArea"></div>
     
     <script src="app.js"></script>
 </body>

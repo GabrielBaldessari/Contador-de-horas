@@ -199,6 +199,32 @@ tr:hover td { background: rgba(255, 255, 255, 0.03); }
     .dashboard { grid-template-columns: 1fr 1fr; }
     .main-header .header-content { flex-direction: row; justify-content: space-between; align-items: center; }
     .log-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 1.5rem; align-items: flex-end; }
-    .input-group { margin-bottom: 0; }
     .btn-primary { width: auto; margin-bottom: 0; }
+}
+
+/* PRINT STYLES FOR INVOICE PDF */
+@media print {
+    body {
+        background: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        -webkit-print-color-adjust: exact !important;
+        color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    .app-container {
+        display: none !important;
+    }
+    #invoicePrintArea {
+        display: block !important;
+        width: 100%;
+        margin: 0;
+        padding: 20px;
+        background: white !important;
+    }
+}
+@media screen {
+    #invoicePrintArea {
+        display: none !important;
+    }
 }
