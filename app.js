@@ -1,4 +1,24 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+
+// ====== FIREBASE SETUP ======
+const firebaseConfig = {
+  apiKey: "AIzaSyB5eXdAsDzM9D-1uxyj8cOlI-_zjgTjXAU",
+  authDomain: "contadordehorasmonotributo.firebaseapp.com",
+  projectId: "contadordehorasmonotributo",
+  storageBucket: "contadordehorasmonotributo.firebasestorage.app",
+  messagingSenderId: "698528298037",
+  appId: "1:698528298037:web:73717a0067afe4fbd4ad7c"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
 // ====== APP STATE ======
+let currentUser = null;
+
 const state = {
     hourlyRate: 0,
     logs: [] // Array of { id, date, hours }
@@ -6,6 +26,11 @@ const state = {
 
 // ====== DOM ELEMENTS ======
 const DOM = {
+    loginScreen: document.getElementById('loginScreen'),
+    appContainer: document.getElementById('appContainer'),
+    loginBtn: document.getElementById('loginBtn'),
+    logoutBtn: document.getElementById('logoutBtn'),
+    
     hourlyRateInput: document.getElementById('hourlyRateInput'),
     saveRateBtn: document.getElementById('saveRateBtn'),
     rateSavedMsg: document.getElementById('rateSavedMsg'),
@@ -27,31 +52,90 @@ const DOM = {
 
 // ====== INITIALIZATION ======
 function init() {
-    loadData();
     setDefaultDate();
     setupEventListeners();
-    updateUI();
+    
+    // Firebase Auth State Observer
+    onAuthStateChanged(auth, async (user) => {
+        if(user) {
+            currentUser = user;
+            DOM.loginScreen.classList.add('hidden');
+            DOM.appContainer.classList.remove('hidden');
+            
+            await loadDataFromCloud();
+            updateUI();
+        } else {
+            currentUser = null;
+            DOM.loginScreen.classList.remove('hidden');
+            DOM.appContainer.classList.add('hidden');
+            
+            state.hourlyRate = 0;
+            state.logs = [];
+            updateUI();
+        }
+    });
 }
 
-// ====== DATA MANAGEMENT ======
-function loadData() {
-    const rate = localStorage.getItem('hourlyRate');
-    const logs = localStorage.getItem('logs');
-    
-    if (rate) state.hourlyRate = parseFloat(rate);
-    if (logs) state.logs = JSON.parse(logs);
-    
-    // Set initial input values
-    DOM.hourlyRateInput.value = state.hourlyRate ? state.hourlyRate : '';
+// ====== DATA MANAGEMENT (FIRESTORE) ======
+async function loadDataFromCloud() {
+    if (!currentUser) return;
+    try {
+        const docRef = doc(db, 'users', currentUser.uid);
+        const snapshot = await getDoc(docRef);
+        
+        if (snapshot.exists()) {
+            const data = snapshot.data();
+            state.hourlyRate = data.hourlyRate || 0;
+            state.logs = data.logs || [];
+        } else {
+            // First time logic, try to migrate from localStorage if available
+            const localRate = localStorage.getItem('hourlyRate');
+            const localLogs = localStorage.getItem('logs');
+            if (localLogs) {
+                state.hourlyRate = parseFloat(localRate) || 0;
+                state.logs = JSON.parse(localLogs) || [];
+                // Save it implicitly
+                saveToCloud();
+            }
+        }
+        
+        DOM.hourlyRateInput.value = state.hourlyRate || '';
+    } catch (e) {
+        console.error("Error cargando datos de Firebase", e);
+    }
 }
 
-function saveData() {
-    localStorage.setItem('hourlyRate', state.hourlyRate);
-    localStorage.setItem('logs', JSON.stringify(state.logs));
+async function saveToCloud() {
+    if (!currentUser) return;
+    try {
+        const docRef = doc(db, 'users', currentUser.uid);
+        await setDoc(docRef, {
+            hourlyRate: state.hourlyRate,
+            logs: state.logs,
+            lastUpdated: new Date().toISOString()
+        }, { merge: true });
+    } catch (e) {
+        console.error("Error guardando en Firebase", e);
+    }
 }
 
 // ====== LISTENERS ======
 function setupEventListeners() {
+    DOM.loginBtn.addEventListener('click', async () => {
+        const provider = new GoogleAuthProvider();
+        try {
+            await signInWithPopup(auth, provider);
+        } catch(err) {
+            console.error("Login failed", err);
+        }
+    });
+    
+    DOM.logoutBtn.addEventListener('click', () => {
+        if(confirm('¿Seguro que deseas cerrar la sesión en este dispositivo?')) {
+            signOut(auth);
+        }
+    });
+
     DOM.saveRateBtn.addEventListener('click', handleSaveRate);
     DOM.logHoursForm.addEventListener('submit', handleLogHours);
     if(DOM.generateInvoiceBtn) {
@@ -67,7 +151,7 @@ function handleSaveRate() {
     }
     
     state.hourlyRate = rate;
-    saveData();
+    saveToCloud();
     updateUI();
     
     // Show success message
@@ -94,19 +178,18 @@ function handleLogHours(e) {
     state.logs.push(newLog);
     state.logs.sort((a, b) => new Date(b.date) - new Date(a.date));
     
-    saveData();
+    saveToCloud();
     updateUI();
     
-    // Reset hours input
     DOM.hoursInput.value = '';
     DOM.hoursInput.focus();
 }
 
-// Globally available for inline onclick attributes
+// Assign specifically to Window for onClick HTML compatibility
 window.deleteLog = function(id) {
     if(confirm('¿Estás seguro de que deseas eliminar este registro?')) {
         state.logs = state.logs.filter(log => log.id !== id);
-        saveData();
+        saveToCloud();
         updateUI();
     }
 }
@@ -122,7 +205,6 @@ function populateMonths() {
     if (!DOM.invoiceMonth) return;
     const months = new Set();
     state.logs.forEach(log => {
-        // extract YYYY-MM
         const logMonth = log.date.substring(0, 7);
         months.add(logMonth);
     });
@@ -198,12 +280,11 @@ function handleGenerateInvoice() {
             </div>
             
             <div style="margin-top: 60px; font-size: 11px; color: #666; text-align: center; border-top: 1px solid #ccc; padding-top: 10px;">
-                Documento generado a través de la aplicación "Contador de Horas".
+                Documento autogenerado a través de la aplicación "Contador de Horas".
             </div>
         </div>
     `;
 
-    // Le damos un respiro pequeñito al navegador para que ponga el HTML antes de lanzar el popup nativo de imprimir
     setTimeout(() => {
         window.print();
     }, 150);
@@ -214,9 +295,7 @@ function renderDashboard() {
     const totalEarnings = totalHours * state.hourlyRate;
     
     DOM.totalHoursDisplay.textContent = totalHours.toFixed(totalHours % 1 === 0 ? 0 : 1);
-    
     const formattedEarnings = '$ ' + totalEarnings.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    
     DOM.totalEarningsDisplay.textContent = formattedEarnings;
 }
 
@@ -235,7 +314,7 @@ function renderLogsTable() {
     state.logs.forEach(log => {
         const row = document.createElement('tr');
         
-        const dateObj = new Date(log.date + 'T00:00:00'); // Prevent timezone shift depending on local timezone
+        const dateObj = new Date(log.date + 'T00:00:00');
         const dateStr = dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
         const earning = (log.hours * state.hourlyRate).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         
