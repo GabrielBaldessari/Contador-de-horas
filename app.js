@@ -32,6 +32,8 @@ const DOM = {
     logoutBtn: document.getElementById('logoutBtn'),
     userProfileInfo: document.getElementById('userProfileInfo'),
     userProfileImg: document.getElementById('userProfileImg'),
+    forceSyncBtn: document.getElementById('forceSyncBtn'),
+    syncText: document.getElementById('syncText'),
     
     hourlyRateInput: document.getElementById('hourlyRateInput'),
     saveRateBtn: document.getElementById('saveRateBtn'),
@@ -158,6 +160,27 @@ function setupEventListeners() {
     DOM.logHoursForm.addEventListener('submit', handleLogHours);
     if(DOM.generateInvoiceBtn) {
         DOM.generateInvoiceBtn.addEventListener('click', handleGenerateInvoice);
+    }
+    
+    if(DOM.forceSyncBtn) {
+        DOM.forceSyncBtn.addEventListener('click', async () => {
+            const originalText = DOM.syncText.innerText;
+            DOM.syncText.innerText = "Guardando...";
+            DOM.forceSyncBtn.disabled = true;
+            DOM.forceSyncBtn.style.opacity = '0.7';
+            
+            await saveToCloud();
+            
+            DOM.syncText.innerText = "¡Listo!";
+            DOM.syncText.style.color = "#10b981"; // success green
+            
+            setTimeout(() => {
+                DOM.syncText.innerText = originalText;
+                DOM.syncText.style.color = "";
+                DOM.forceSyncBtn.disabled = false;
+                DOM.forceSyncBtn.style.opacity = '1';
+            }, 2500);
+        });
     }
 }
 
