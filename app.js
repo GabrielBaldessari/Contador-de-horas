@@ -127,6 +127,7 @@ function setupEventListeners() {
             await signInWithPopup(auth, provider);
         } catch(err) {
             console.error("Login failed", err);
+            alert("Error de Firebase: " + err.message + "\n\nNota: Si estás abriendo el archivo localmente (doble clic), Firebase bloqueará el acceso. Prueba desde GitHub Pages.");
         }
     });
     
