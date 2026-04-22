@@ -37,7 +37,18 @@
                     <input type="number" id="hourlyRateInput" placeholder="Ej. 15000" min="0" step="100">
                     <button id="saveRateBtn" class="btn-secondary">Guardar</button>
                     <span id="rateSavedMsg" class="success-msg hidden">¡Guardado!</span>
-                    <button id="logoutBtn" class="btn-secondary" style="margin-left: auto; padding: 0.5rem 1rem; font-size: 0.9rem;">Salir</button>
+                </div>
+                
+                <!-- Perfil y Logout -->
+                <div class="user-profile hidden" id="userProfileInfo">
+                    <img src="" alt="Perfil" id="userProfileImg" class="profile-img" title="Usuario activo">
+                    <button id="logoutBtn" class="btn-secondary logout-btn" title="Cerrar sesión">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                    </button>
                 </div>
             </div>
         </header>

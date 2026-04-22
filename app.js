@@ -30,6 +30,8 @@ const DOM = {
     appContainer: document.getElementById('appContainer'),
     loginBtn: document.getElementById('loginBtn'),
     logoutBtn: document.getElementById('logoutBtn'),
+    userProfileInfo: document.getElementById('userProfileInfo'),
+    userProfileImg: document.getElementById('userProfileImg'),
     
     hourlyRateInput: document.getElementById('hourlyRateInput'),
     saveRateBtn: document.getElementById('saveRateBtn'),
@@ -62,12 +64,21 @@ function init() {
             DOM.loginScreen.classList.add('hidden');
             DOM.appContainer.classList.remove('hidden');
             
+            // Set User profile image
+            if (user.photoURL) {
+                DOM.userProfileImg.src = user.photoURL;
+            } else {
+                DOM.userProfileImg.src = "https://ui-avatars.com/api/?name=" + (user.displayName || "G") + "&background=random";
+            }
+            DOM.userProfileInfo.classList.remove('hidden');
+            
             await loadDataFromCloud();
             updateUI();
         } else {
             currentUser = null;
             DOM.loginScreen.classList.remove('hidden');
             DOM.appContainer.classList.add('hidden');
+            DOM.userProfileInfo.classList.add('hidden');
             
             state.hourlyRate = 0;
             state.logs = [];
