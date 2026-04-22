@@ -163,17 +163,10 @@ function handleGenerateInvoice() {
     const mName = new Date(year, parseInt(month) - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
     const formatter = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
 
-    // Generar la estructura unida al DOM pero invisible para garantizar render exacto
-    const printElement = document.createElement('div');
-    printElement.style.position = 'fixed'; // Elimina bugs de scrollY
-    printElement.style.top = '0';
-    printElement.style.left = '0';
-    printElement.style.width = '794px'; // Ancho de A4 a 96DPI
-    printElement.style.background = '#ffffff';
-    printElement.style.zIndex = '-9999'; // Oculto detrás de la app real
-    
-    printElement.innerHTML = `
-        <div style="padding: 40px; font-family: 'Inter', sans-serif; color: #1e293b; text-align: left; background: #ffffff;">
+    // Generar el HTML como texto puro (String) sin agregarlo a nuestro DOM visible.
+    // Esto previene los problemas de "salió en blanco" o recortes.
+    const templateHTML = `
+        <div style="padding: 40px; font-family: 'Inter', sans-serif; color: #1e293b; text-align: left; background: #ffffff; width: 680px;">
             <div style="font-size: 28px; font-weight: bold; color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-bottom: 20px;">Reporte de Honorarios</div>
             <div style="margin-bottom: 30px; line-height: 1.6; font-size: 14px;">
                 <p style="margin: 0;"><strong>Fecha de Emisión:</strong> <span>${new Date().toLocaleDateString('es-AR')}</span></p>
@@ -209,26 +202,16 @@ function handleGenerateInvoice() {
         </div>
     `;
 
-    document.body.appendChild(printElement); // Lo atamos al DOM principal
-    
     // Configuración robusta para evitar recorte
     const opt = {
-        margin:       0.5, // 0.5 pulgadas para márgenes reales
+        margin:       0.5,
         filename:     `Factura_${selectedMonth}.pdf`,
-        image:        { type: 'jpeg', quality: 1.0 },
-        html2canvas:  { 
-            scale: 2, 
-            useCORS: true, 
-            scrollY: 0, // Ignora el scroll actual
-            windowWidth: 794 // Asegura medidas base de lienzo 
-        },
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
         jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
     };
     
-    html2pdf().set(opt).from(printElement).save().then(() => {
-        // Limpiamos el DOM oculto una vez generado
-        document.body.removeChild(printElement);
-    });
+    html2pdf().set(opt).from(templateHTML).save();
 }
 
 function renderDashboard() {
