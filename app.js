@@ -105,8 +105,13 @@ async function loadDataFromCloud() {
             if (localLogs) {
                 state.hourlyRate = parseFloat(localRate) || 0;
                 state.logs = JSON.parse(localLogs) || [];
-                // Save it implicitly
-                saveToCloud();
+                // Migrate to Firebase and wipe local so it doesn't bleed into other Google accounts
+                await saveToCloud();
+                localStorage.removeItem('hourlyRate');
+                localStorage.removeItem('logs');
+            } else {
+                state.hourlyRate = 0;
+                state.logs = [];
             }
         }
         
@@ -127,6 +132,7 @@ async function saveToCloud() {
         }, { merge: true });
     } catch (e) {
         console.error("Error guardando en Firebase", e);
+        alert("Nota: Tus datos no se lograron guardar en la nube (Posiblemente necesitas habilitar Firestore o ponerlo en Modo Prueba en tu Consola de Firebase).");
     }
 }
 
