@@ -163,10 +163,18 @@ function handleGenerateInvoice() {
     const mName = new Date(year, parseInt(month) - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
     const formatter = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
 
-    // Generar el HTML como texto puro (String) sin agregarlo a nuestro DOM visible.
-    // Esto previene los problemas de "salió en blanco" o recortes.
-    const templateHTML = `
-        <div style="padding: 40px; font-family: 'Inter', sans-serif; color: #1e293b; text-align: left; background: #ffffff; width: 680px;">
+    // Construiremos el elemento visiblemente sobre el DOM, pero forzaremos estar arriba. 
+    // Esto asegura que la librería "Corte" exactamente lo que ve sin estar tapado ni recortado.
+    const printElement = document.createElement('div');
+    printElement.style.position = 'absolute';
+    printElement.style.top = '0';
+    printElement.style.left = '0';
+    printElement.style.width = '794px'; 
+    printElement.style.background = '#ffffff';
+    printElement.style.zIndex = '99999'; // Lo ponemos arriba de todo para que no lo tape el fondo del body
+    
+    printElement.innerHTML = `
+        <div style="padding: 40px; font-family: 'Inter', sans-serif; color: #1e293b; text-align: left; background: #ffffff;">
             <div style="font-size: 28px; font-weight: bold; color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-bottom: 20px;">Reporte de Honorarios</div>
             <div style="margin-bottom: 30px; line-height: 1.6; font-size: 14px;">
                 <p style="margin: 0;"><strong>Fecha de Emisión:</strong> <span>${new Date().toLocaleDateString('es-AR')}</span></p>
@@ -202,16 +210,26 @@ function handleGenerateInvoice() {
         </div>
     `;
 
-    // Configuración robusta para evitar recorte
+    document.body.appendChild(printElement);
+    
+    // Guardamos la posición actual
+    const originalScrollY = window.scrollY;
+    // Forzamos ir arriba para pintar limpio
+    window.scrollTo(0, 0);
+
     const opt = {
-        margin:       0.5,
+        margin:       [0.5, 0.5],
         filename:     `Factura_${selectedMonth}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true },
+        image:        { type: 'jpeg', quality: 1.0 },
+        html2canvas:  { scale: 2, useCORS: true, scrollY: 0 },
         jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
     };
     
-    html2pdf().set(opt).from(templateHTML).save();
+    html2pdf().set(opt).from(printElement).save().then(() => {
+        document.body.removeChild(printElement);
+        // Regresamos al usuario a donde estaba
+        window.scrollTo(0, originalScrollY);
+    });
 }
 
 function renderDashboard() {
