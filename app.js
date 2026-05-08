@@ -397,12 +397,19 @@ function renderGuestsTable() {
         return;
     }
     
-    state.guests.forEach(guest => {
+    state.guests.forEach(guestObj => {
+        // Compatibilidad robusta cruzada por si hay strings estropeando la memoria cacheada
+        const email = typeof guestObj === 'string' ? guestObj : guestObj.email;
+        const role = typeof guestObj === 'string' ? 'guest' : guestObj.role;
+        const roleLabel = role === 'editor' ? '✍️ Edición y Carga' : '👀 Lectura';
+        
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td style="padding: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.1); color: #f8fafc;">${guest}</td>
-            <td style="padding: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: right;">
-                <button class="btn-danger" onclick="removeGuest('${guest}')">Quitar</button>
+            <td style="padding: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.1); color: #f8fafc; font-size: 0.9rem;">
+                ${email}<br><span style="color: #60a5fa; font-size: 0.8rem;">${roleLabel}</span>
+            </td>
+            <td style="padding: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: right; width: 80px;">
+                <button class="btn-danger" style="margin: 0; padding: 0.4rem 0.8rem;" onclick="removeGuest('${email}')">Quitar</button>
             </td>
         `;
         DOM.guestsTableBody.appendChild(row);
@@ -410,8 +417,11 @@ function renderGuestsTable() {
 }
 
 window.removeGuest = async function(email) {
-    if(confirm(`¿Estás seguro de que quieres revocarle el acceso a ${email}?`)) {
-        state.guests = state.guests.filter(g => g !== email);
+    if(confirm(`¿Estás seguro de que quieres quitar a ${email}?`)) {
+        state.guests = state.guests.filter(g => {
+            const gEmail = typeof g === 'string' ? g : g.email;
+            return gEmail !== email;
+        });
         renderGuestsTable();
         await saveToCloud();
     }
