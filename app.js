@@ -410,11 +410,11 @@ function renderGuestsTable() {
         
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td style="padding: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.1); color: #f8fafc; font-size: 0.9rem;">
+            <td style="padding: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.1); color: #f8fafc; font-size: 0.9rem; word-break: break-all;">
                 ${email}<br><span style="color: #60a5fa; font-size: 0.8rem;">${roleLabel}</span>
             </td>
-            <td style="padding: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: right; width: 80px;">
-                <button class="btn-danger" style="margin: 0; padding: 0.4rem 0.8rem;" onclick="removeGuest('${email}')">Quitar</button>
+            <td style="padding: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: right; white-space: nowrap;">
+                <button class="btn-danger" style="margin: 0; padding: 0.4rem 0.8rem; white-space: nowrap;" onclick="removeGuest('${email}')">Quitar</button>
             </td>
         `;
         DOM.guestsTableBody.appendChild(row);
