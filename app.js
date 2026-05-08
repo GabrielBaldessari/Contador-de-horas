@@ -33,6 +33,7 @@ const state = {
 const DOM = {
     loginScreen: document.getElementById('loginScreen'),
     appContainer: document.getElementById('appContainer'),
+    mainAppTitle: document.getElementById('mainAppTitle'),
     loginBtn: document.getElementById('loginBtn'),
     logoutBtn: document.getElementById('logoutBtn'),
     userProfileInfo: document.getElementById('userProfileInfo'),
@@ -223,6 +224,16 @@ function listenToWorkspace(workspaceId) {
     if (cloudListener) cloudListener();
     currentWorkspaceId = workspaceId;
     renderWorkspaceDropdown();
+    
+    if (workspaceId === currentUser.uid) {
+        DOM.mainAppTitle.innerHTML = 'Mis Horas';
+    } else {
+        const foundWs = availableWorkspaces.find(w => w.id === workspaceId);
+        if (foundWs) {
+            const imgHost = foundWs.photo ? `<img src="${foundWs.photo}" style="width: 25px; height: 25px; border-radius: 50%;">` : '📁';
+            DOM.mainAppTitle.innerHTML = `${imgHost} ${foundWs.name} <span style="font-size:0.5em; background: rgba(59,130,246,0.3); padding: 3px 8px; border-radius: 10px; vertical-align: middle; margin-left: 10px; font-weight: normal; max-height: 20px; display: inline-flex; align-items: center;">Invitado</span>`;
+        }
+    }
     
     const docRef = doc(db, 'workspaces', workspaceId);
     cloudListener = onSnapshot(docRef, async (docSnap) => {
