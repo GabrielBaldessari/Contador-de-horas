@@ -19,10 +19,12 @@ const db = getFirestore(app);
 // ====== APP STATE ======
 let currentUser = null;
 let cloudListener = null;
+let userRole = 'none'; // 'owner', 'guest'
 
 const state = {
     hourlyRate: 0,
-    logs: [] // Array of { id, date, hours }
+    logs: [],
+    guests: []
 };
 
 // ====== DOM ELEMENTS ======
@@ -34,6 +36,13 @@ const DOM = {
     userProfileInfo: document.getElementById('userProfileInfo'),
     userProfileImg: document.getElementById('userProfileImg'),
     forceSyncBtn: document.getElementById('forceSyncBtn'),
+    openConfigBtn: document.getElementById('openConfigBtn'),
+    
+    configModal: document.getElementById('configModal'),
+    closeConfigBtn: document.getElementById('closeConfigBtn'),
+    guestEmailInput: document.getElementById('guestEmailInput'),
+    addGuestBtn: document.getElementById('addGuestBtn'),
+    guestsTableBody: document.getElementById('guestsTableBody'),
     
     hourlyRateInput: document.getElementById('hourlyRateInput'),
     saveRateBtn: document.getElementById('saveRateBtn'),
@@ -127,7 +136,25 @@ async function loadDataFromCloud() {
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 
+                // --- ROLE BASED ACCESS CONTROL (RBAC) ---
+                if (!data.ownerUid) {
+                    // Reclaim ownership if the DB is blank
+                    userRole = 'owner';
+                    await setDoc(docRef, { ownerUid: currentUser.uid, ownerEmail: currentUser.email }, { merge: true });
+                } else if (data.ownerUid === currentUser.uid) {
+                    userRole = 'owner';
+                } else if (data.guests && data.guests.includes(currentUser.email)) {
+                    userRole = 'guest';
+                } else {
+                    userRole = 'none';
+                    alert("⚠️ Acceso Denegado. Tu correo (" + currentUser.email + ") no está en la lista de invitados de este tablero.");
+                    if(cloudListener) cloudListener();
+                    signOut(auth);
+                    return;
+                }
+                
                 // Set memory state
+                state.guests = data.guests || [];
                 state.hourlyRate = data.hourlyRate || 0;
                 let finalLogs = data.logs || [];
                 
@@ -183,12 +210,14 @@ async function loadDataFromCloud() {
 }
 
 async function saveToCloud() {
-    if (!currentUser) return;
+    if (!currentUser || userRole === 'guest') return; // Guests aren't allowed to sync writes to cloud logic directly anyway, but protect locally just in case
+    
     try {
         const docRef = doc(db, 'workspaces', 'global_tracker');
         await setDoc(docRef, {
             hourlyRate: state.hourlyRate,
             logs: state.logs,
+            guests: state.guests,
             lastUpdated: new Date().toISOString()
         }, { merge: true });
     } catch (e) {
@@ -222,6 +251,31 @@ function setupEventListeners() {
     }
     if(DOM.dashboardMonthFilter) {
         DOM.dashboardMonthFilter.addEventListener('change', renderDashboard);
+    }
+    
+    // Guest Configuration List Modal
+    if (DOM.openConfigBtn) {
+        DOM.openConfigBtn.addEventListener('click', () => {
+            renderGuestsTable();
+            DOM.configModal.classList.remove('hidden');
+        });
+        
+        DOM.closeConfigBtn.addEventListener('click', () => {
+            DOM.configModal.classList.add('hidden');
+        });
+        
+        DOM.addGuestBtn.addEventListener('click', async () => {
+            const email = DOM.guestEmailInput.value.trim().toLowerCase();
+            if (!email || !email.includes('@')) return;
+            if (state.guests.includes(email)) return;
+            if (email === currentUser.email) return;
+            
+            state.guests.push(email);
+            DOM.guestEmailInput.value = '';
+            
+            renderGuestsTable();
+            await saveToCloud();
+        });
     }
     
     if(DOM.forceSyncBtn) {
@@ -311,11 +365,41 @@ function handleLogHours(e) {
 }
 
 // Assign specifically to Window for onClick HTML compatibility
-window.deleteLog = function(id) {
-    if(confirm('¿Estás seguro de que deseas eliminar este registro?')) {
+window.deleteLog = async function(id) {
+    if (userRole === 'guest') return;
+    if(confirm('¿Estás seguro de eliminar este registro?')) {
         state.logs = state.logs.filter(log => log.id !== id);
-        saveToCloud();
-        updateUI();
+        renderDashboard();
+        renderLogsTable();
+        
+        await saveToCloud();
+    }
+}
+
+function renderGuestsTable() {
+    DOM.guestsTableBody.innerHTML = '';
+    if (!state.guests || state.guests.length === 0) {
+        DOM.guestsTableBody.innerHTML = '<tr><td style="color:#94a3b8; padding: 1rem;">No hay invitados definidos aún.</td></tr>';
+        return;
+    }
+    
+    state.guests.forEach(guest => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td style="padding: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.1); color: #f8fafc;">${guest}</td>
+            <td style="padding: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: right;">
+                <button class="btn-danger" onclick="removeGuest('${guest}')">Quitar</button>
+            </td>
+        `;
+        DOM.guestsTableBody.appendChild(row);
+    });
+}
+
+window.removeGuest = async function(email) {
+    if(confirm(`¿Estás seguro de que quieres revocarle el acceso a ${email}?`)) {
+        state.guests = state.guests.filter(g => g !== email);
+        renderGuestsTable();
+        await saveToCloud();
     }
 }
 
@@ -324,6 +408,27 @@ function updateUI() {
     populateMonths();
     renderDashboard();
     renderLogsTable();
+    applyRoleRestrictions();
+}
+
+function applyRoleRestrictions() {
+    if (userRole === 'owner') {
+        DOM.forceSyncBtn.classList.remove('hidden');
+        DOM.openConfigBtn.classList.remove('hidden');
+        if(DOM.logHoursForm && DOM.logHoursForm.parentElement) {
+            DOM.logHoursForm.parentElement.classList.remove('hidden');
+        }
+        DOM.hourlyRateInput.disabled = false;
+        DOM.saveRateBtn.classList.remove('hidden');
+    } else if (userRole === 'guest') {
+        DOM.forceSyncBtn.classList.add('hidden');
+        DOM.openConfigBtn.classList.add('hidden');
+        if(DOM.logHoursForm && DOM.logHoursForm.parentElement) {
+            DOM.logHoursForm.parentElement.classList.add('hidden');
+        }
+        DOM.hourlyRateInput.disabled = true;
+        DOM.saveRateBtn.classList.add('hidden');
+    }
 }
 
 function populateMonths() {
@@ -473,13 +578,17 @@ function renderLogsTable() {
         // Compatibilidad con logs viejos
         const timeStr = (log.timeIn && log.timeOut) ? `${log.timeIn} - ${log.timeOut}` : 'Manual';
         
+        const deleteHtml = userRole === 'owner' 
+            ? `<button class="btn-danger" onclick="deleteLog('${log.id}')">Eliminar</button>` 
+            : `<span style="color: #94a3b8; font-size: 0.85rem;">Solo lectura</span>`;
+        
         row.innerHTML = `
             <td><strong>${dateStr}</strong></td>
             <td>${timeStr}</td>
             <td>${log.hours} h</td>
             <td>$ ${earning}</td>
             <td>
-                <button class="btn-danger" onclick="deleteLog('${log.id}')">Eliminar</button>
+                ${deleteHtml}
             </td>
         `;
         

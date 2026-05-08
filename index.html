@@ -25,6 +25,28 @@
             </button>
         </div>
     </div>
+    
+    <!-- Config Modal -->
+    <div id="configModal" class="login-screen hidden" style="backdrop-filter: blur(10px);">
+        <div class="glass-panel login-card" style="max-width: 500px; width: 90%;">
+            <h2 style="color: #3b82f6;">Accesos de Invitados</h2>
+            <p>Agrega los correos (Gmail) de los usuarios que solo podrán ver el panel en modo "Lectura".</p>
+            <div class="input-group">
+                <input type="email" id="guestEmailInput" placeholder="jefe@gmail.com">
+                <button id="addGuestBtn" class="btn-primary" style="margin-top: 1rem;">Dar Acceso de Lectura</button>
+            </div>
+            
+            <div class="table-container" style="margin-top: 1.5rem; text-align: left;">
+                <table style="width:100%; border: none;">
+                    <tbody id="guestsTableBody">
+                        <!-- Invitados inyectados aqui -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <button id="closeConfigBtn" class="btn-secondary" style="margin-top: 2rem; width: 100%;">Cerrar Panel</button>
+        </div>
+    </div>
 
     <!-- App Content -->
     <div id="appContainer" class="app-container hidden">
@@ -41,7 +63,15 @@
                 
                 <!-- Perfil y Logout -->
                 <div class="user-profile hidden" id="userProfileInfo">
-                    <button id="forceSyncBtn" class="btn-secondary" title="Sincronizar y Forzar Guardado" style="padding: 0.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px;">
+                    
+                    <button id="openConfigBtn" class="btn-secondary hidden" title="Panel de Permisos" style="padding: 0.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                    </button>
+                    
+                    <button id="forceSyncBtn" class="btn-secondary hidden" title="Sincronizar y Forzar Guardado" style="padding: 0.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px;">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
                             <polyline points="17 21 17 13 7 13 7 21"></polyline>
