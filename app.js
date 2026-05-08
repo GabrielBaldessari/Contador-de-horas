@@ -123,13 +123,48 @@ async function loadDataFromCloud() {
         }
         
         // Empezar a escuchar en "Tiempo Real" (Magia Pura)
-        cloudListener = onSnapshot(docRef, (docSnap) => {
+        cloudListener = onSnapshot(docRef, async (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 
                 // Set memory state
                 state.hourlyRate = data.hourlyRate || 0;
-                state.logs = data.logs || [];
+                let finalLogs = data.logs || [];
+                
+                // --- QUICK RECOVERY MIGRATION SCRIPT ---
+                // Si el usuario tenía horas en su cuenta vieja, las inyectamos.
+                try {
+                    const oldRef = doc(db, 'users', currentUser.uid);
+                    const oldSnap = await getDoc(oldRef);
+                    if (oldSnap.exists()) {
+                        const oldData = oldSnap.data();
+                        let needsMerge = false;
+                        if (oldData.logs) {
+                            oldData.logs.forEach(oldLog => {
+                                if (!finalLogs.find(l => l.id === oldLog.id)) {
+                                    finalLogs.push(oldLog);
+                                    needsMerge = true;
+                                }
+                            });
+                        }
+                        if (oldData.hourlyRate && state.hourlyRate === 0) {
+                            state.hourlyRate = oldData.hourlyRate;
+                            needsMerge = true;
+                        }
+                        
+                        // Si tuvimos que recuperar datos, purgar el viejo y actualizar este nuevo en nube
+                        if (needsMerge) {
+                            finalLogs.sort((a, b) => new Date(b.date) - new Date(a.date));
+                            state.logs = finalLogs;
+                            updateUI(); // Pintar rapido
+                            await saveToCloud(); // Empujar arriba
+                        }
+                    }
+                } catch(err) {
+                    console.error("No se pudo migrar la db vieja", err);
+                }
+                
+                state.logs = finalLogs;
                 
                 // Do not override user input while they type the Rate, if currently focused
                 const isRateInputFocused = document.activeElement === DOM.hourlyRateInput;
