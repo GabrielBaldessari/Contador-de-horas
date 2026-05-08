@@ -162,7 +162,12 @@ async function loadDataFromCloud() {
                 
                 // Set memory state
                 const rawGuests = data.guests || [];
-                state.guests = rawGuests.map(g => typeof g === 'string' ? { email: g, role: 'guest' } : g);
+                // Scrub potential [object Object] database stringification bug inherited from old versions
+                state.guests = rawGuests
+                    .filter(g => g !== '[object Object]')
+                    .map(g => typeof g === 'string' ? { email: g, role: 'guest' } : g)
+                    .filter(g => g && g.email);
+                
                 state.hourlyRate = data.hourlyRate || 0;
                 let finalLogs = data.logs || [];
                 
