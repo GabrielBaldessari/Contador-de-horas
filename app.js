@@ -276,10 +276,15 @@ function setupEventListeners() {
             const email = DOM.guestEmailInput.value.trim().toLowerCase();
             const role = DOM.guestRoleInput.value;
             if (!email || !email.includes('@')) return;
-            if (state.guests.find(g => g.email === email)) return;
             if (email === currentUser.email) return;
             
-            state.guests.push({ email, role });
+            const existingIndex = state.guests.findIndex(g => g.email === email);
+            if (existingIndex !== -1) {
+                state.guests[existingIndex].role = role;
+            } else {
+                state.guests.push({ email, role });
+            }
+            
             DOM.guestEmailInput.value = '';
             
             renderGuestsTable();
