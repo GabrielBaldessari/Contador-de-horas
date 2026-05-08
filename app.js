@@ -41,6 +41,7 @@ const DOM = {
     configModal: document.getElementById('configModal'),
     closeConfigBtn: document.getElementById('closeConfigBtn'),
     guestEmailInput: document.getElementById('guestEmailInput'),
+    guestRoleInput: document.getElementById('guestRoleInput'),
     addGuestBtn: document.getElementById('addGuestBtn'),
     guestsTableBody: document.getElementById('guestsTableBody'),
     
@@ -143,18 +144,25 @@ async function loadDataFromCloud() {
                     await setDoc(docRef, { ownerUid: currentUser.uid, ownerEmail: currentUser.email }, { merge: true });
                 } else if (data.ownerUid === currentUser.uid) {
                     userRole = 'owner';
-                } else if (data.guests && data.guests.includes(currentUser.email)) {
-                    userRole = 'guest';
                 } else {
-                    userRole = 'none';
-                    alert("⚠️ Acceso Denegado. Tu correo (" + currentUser.email + ") no está en la lista de invitados de este tablero.");
-                    if(cloudListener) cloudListener();
-                    signOut(auth);
-                    return;
+                    const foundGuest = (data.guests || []).find(g => 
+                        (typeof g === 'string' ? g : g.email) === currentUser.email
+                    );
+                    if (foundGuest) {
+                        const roleLevel = typeof foundGuest === 'string' ? 'guest' : foundGuest.role;
+                        userRole = roleLevel === 'editor' ? 'editor' : 'guest';
+                    } else {
+                        userRole = 'none';
+                        alert("⚠️ Acceso Denegado. Tu correo (" + currentUser.email + ") no está en la lista de invitados de este tablero.");
+                        if(cloudListener) cloudListener();
+                        signOut(auth);
+                        return;
+                    }
                 }
                 
                 // Set memory state
-                state.guests = data.guests || [];
+                const rawGuests = data.guests || [];
+                state.guests = rawGuests.map(g => typeof g === 'string' ? { email: g, role: 'guest' } : g);
                 state.hourlyRate = data.hourlyRate || 0;
                 let finalLogs = data.logs || [];
                 
@@ -266,11 +274,12 @@ function setupEventListeners() {
         
         DOM.addGuestBtn.addEventListener('click', async () => {
             const email = DOM.guestEmailInput.value.trim().toLowerCase();
+            const role = DOM.guestRoleInput.value;
             if (!email || !email.includes('@')) return;
-            if (state.guests.includes(email)) return;
+            if (state.guests.find(g => g.email === email)) return;
             if (email === currentUser.email) return;
             
-            state.guests.push(email);
+            state.guests.push({ email, role });
             DOM.guestEmailInput.value = '';
             
             renderGuestsTable();
@@ -412,9 +421,13 @@ function updateUI() {
 }
 
 function applyRoleRestrictions() {
-    if (userRole === 'owner') {
+    if (userRole === 'owner' || userRole === 'editor') {
         DOM.forceSyncBtn.classList.remove('hidden');
-        DOM.openConfigBtn.classList.remove('hidden');
+        if (userRole === 'owner') {
+            DOM.openConfigBtn.classList.remove('hidden');
+        } else {
+            DOM.openConfigBtn.classList.add('hidden');
+        }
         if(DOM.logHoursForm && DOM.logHoursForm.parentElement) {
             DOM.logHoursForm.parentElement.classList.remove('hidden');
         }
@@ -578,7 +591,7 @@ function renderLogsTable() {
         // Compatibilidad con logs viejos
         const timeStr = (log.timeIn && log.timeOut) ? `${log.timeIn} - ${log.timeOut}` : 'Manual';
         
-        const deleteHtml = userRole === 'owner' 
+        const deleteHtml = (userRole === 'owner' || userRole === 'editor') 
             ? `<button class="btn-danger" onclick="deleteLog('${log.id}')">Eliminar</button>` 
             : `<span style="color: #94a3b8; font-size: 0.85rem;">Solo lectura</span>`;
         

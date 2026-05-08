@@ -30,10 +30,14 @@
     <div id="configModal" class="login-screen hidden" style="backdrop-filter: blur(10px);">
         <div class="glass-panel login-card" style="max-width: 500px; width: 90%;">
             <h2 style="color: #3b82f6;">Accesos de Invitados</h2>
-            <p>Agrega los correos (Gmail) de los usuarios que solo podrán ver el panel en modo "Lectura".</p>
+            <p>Agrega los correos (Gmail) de los usuarios para darles acceso a tu tablero.</p>
             <div class="input-group">
                 <input type="email" id="guestEmailInput" placeholder="jefe@gmail.com">
-                <button id="addGuestBtn" class="btn-primary" style="margin-top: 1rem;">Dar Acceso de Lectura</button>
+                <select id="guestRoleInput" style="margin-top: 0.5rem; background: rgba(0,0,0,0.2); border: 1px solid var(--surface-border); color: white; padding: 0.8rem; border-radius: var(--radius-md);">
+                    <option value="guest">Solo Lectura (Invitado)</option>
+                    <option value="editor">Permitir Edición y Carga</option>
+                </select>
+                <button id="addGuestBtn" class="btn-primary" style="margin-top: 1rem;">Otorgar Permiso</button>
             </div>
             
             <div class="table-container" style="margin-top: 1.5rem; text-align: left;">
