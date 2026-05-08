@@ -256,7 +256,6 @@ tr:hover td { background: rgba(255, 255, 255, 0.03); }
 
 /* RESPONSIVE: TABLETS & UP */
 @media (min-width: 640px) {
-    .main-header { position: sticky; top: 1rem; }
     .dashboard { grid-template-columns: 1fr 1fr; }
     .main-header .header-content { flex-direction: row; justify-content: space-between; align-items: center; }
     .log-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 1.5rem; align-items: flex-end; }
