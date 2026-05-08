@@ -75,6 +75,18 @@
                             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
                         </svg>
                     </button>
+                    <!-- Auth Info -->
+            <div id="authInfo" class="hidden" style="align-items: center; gap: 1rem; position: relative;">
+                <div style="position: relative;">
+                    <img id="userPhoto" src="" alt="User" style="width: 40px; height: 40px; border-radius: 50%; cursor: pointer; border: 2px solid rgba(255,255,255,0.2); transition: all 0.3s ease;" title="Cambiar Tablero">
+                    <div id="workspaceDropdown" class="hidden glass-panel" style="position: absolute; top: 50px; right: 0; width: 280px; padding: 0.5rem; border-radius: var(--radius-md); z-index: 1000; flex-direction: column; gap: 0.2rem; transform-origin: top right; transition: all 0.2s; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                        <!-- Opciones Inyectadas JS -->
+                    </div>
+                </div>
+                
+                <button id="openConfigBtn" class="btn-icon" title="Configuración de Accesos">
+                    ⚙️
+                </button>
                     
                     <button id="forceSyncBtn" class="btn-secondary hidden" title="Sincronizar y Forzar Guardado" style="padding: 0.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px;">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -177,6 +189,6 @@
     <!-- Contenedor nativo para la impresión PDF -->
     <div id="invoicePrintArea"></div>
     
-    <script type="module" src="app.js?v=8.0"></script>
+    <script type="module" src="app.js?v=9.0"></script>
 </body>
 </html>

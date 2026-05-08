@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
 // ====== FIREBASE SETUP ======
 const firebaseConfig = {
@@ -20,6 +20,8 @@ const db = getFirestore(app);
 let currentUser = null;
 let cloudListener = null;
 let userRole = 'none'; // 'owner', 'guest'
+let currentWorkspaceId = null;
+let availableWorkspaces = [];
 
 const state = {
     hourlyRate: 0,
@@ -34,7 +36,9 @@ const DOM = {
     loginBtn: document.getElementById('loginBtn'),
     logoutBtn: document.getElementById('logoutBtn'),
     userProfileInfo: document.getElementById('userProfileInfo'),
-    userProfileImg: document.getElementById('userProfileImg'),
+    userPhoto: document.getElementById('userPhoto'),
+    workspaceDropdown: document.getElementById('workspaceDropdown'),
+    authInfo: document.getElementById('authInfo'),
     forceSyncBtn: document.getElementById('forceSyncBtn'),
     openConfigBtn: document.getElementById('openConfigBtn'),
     
@@ -80,20 +84,22 @@ function init() {
             
             // Set User profile image
             if (user.photoURL) {
-                DOM.userProfileImg.src = user.photoURL;
+                DOM.userPhoto.src = user.photoURL;
             } else {
-                DOM.userProfileImg.src = "https://ui-avatars.com/api/?name=" + (user.displayName || "G") + "&background=random";
+                DOM.userPhoto.src = "https://ui-avatars.com/api/?name=" + (user.displayName || "G") + "&background=random";
             }
-            DOM.userProfileInfo.classList.remove('hidden');
+            DOM.authInfo.classList.remove('hidden');
+            DOM.authInfo.style.display = 'flex';
             
-            await loadDataFromCloud();
-            updateUI();
+            await initWorkspaceLogic();
         } else {
             if (cloudListener) cloudListener(); // kill connection on logout
             currentUser = null;
+            currentWorkspaceId = null;
+            availableWorkspaces = [];
             DOM.loginScreen.classList.remove('hidden');
             DOM.appContainer.classList.add('hidden');
-            DOM.userProfileInfo.classList.add('hidden');
+            DOM.authInfo.classList.add('hidden');
             
             state.hourlyRate = 0;
             state.logs = [];
@@ -103,139 +109,194 @@ function init() {
 }
 
 // ====== DATA MANAGEMENT (FIRESTORE) ======
-async function loadDataFromCloud() {
+async function initWorkspaceLogic() {
     if (!currentUser) return;
     
-    // Clear any previous listeners
-    if (cloudListener) cloudListener();
+    currentWorkspaceId = currentUser.uid;
+    const personalRef = doc(db, 'workspaces', currentWorkspaceId);
     
     try {
-        const docRef = doc(db, 'workspaces', 'global_tracker');
-        const snapshot = await getDoc(docRef);
-        
-        // Logical migration only on first read:
+        const snapshot = await getDoc(personalRef);
+        // Migración silenciosa 0 disrupción
         if (!snapshot.exists()) {
-            const localRate = localStorage.getItem('hourlyRate');
-            const localLogs = localStorage.getItem('logs');
-            if (localLogs) {
-                state.hourlyRate = parseFloat(localRate) || 0;
-                state.logs = JSON.parse(localLogs) || [];
-                // Save immediately so snapshot catches it right after
-                await saveToCloud();
-                localStorage.removeItem('hourlyRate');
-                localStorage.removeItem('logs');
+            const legacyRef = doc(db, 'workspaces', 'global_tracker');
+            const legacySnap = await getDoc(legacyRef);
+            if (legacySnap.exists() && legacySnap.data().ownerUid === currentUser.uid) {
+                await setDoc(personalRef, legacySnap.data());
             } else {
-                state.hourlyRate = 0;
-                state.logs = [];
-                // Create explicitly so the listener binds properly
-                await saveToCloud(); 
+                // Generar de 0 o fallback legacy local
+                const localRate = localStorage.getItem('hourlyRate');
+                const localLogs = localStorage.getItem('logs');
+                if (localLogs) {
+                    state.hourlyRate = parseFloat(localRate) || 0;
+                    state.logs = JSON.parse(localLogs) || [];
+                    localStorage.removeItem('hourlyRate');
+                    localStorage.removeItem('logs');
+                } else {
+                    state.hourlyRate = 0;
+                    state.logs = [];
+                }
+                userRole = 'owner';
+                await saveToCloud();
             }
         }
+    } catch(err) {
+        console.warn("Fallo en inicialización:", err);
+    }
+    
+    await fetchAccessibleWorkspaces();
+    listenToWorkspace(currentWorkspaceId);
+}
+
+async function fetchAccessibleWorkspaces() {
+    availableWorkspaces = [];
+    availableWorkspaces.push({
+        id: currentUser.uid,
+        name: 'Mi Tablero Personal',
+        photo: currentUser.photoURL || '',
+        isOwner: true
+    });
+    
+    try {
+        const q = query(collection(db, 'workspaces'), where('guestEmails', 'array-contains', currentUser.email));
+        const querySnapshot = await getDocs(q);
         
-        // Empezar a escuchar en "Tiempo Real" (Magia Pura)
-        cloudListener = onSnapshot(docRef, async (docSnap) => {
-            if (docSnap.exists()) {
+        querySnapshot.forEach((docSnap) => {
+            if (docSnap.id !== currentUser.uid) {
                 const data = docSnap.data();
-                
-                // --- ROLE BASED ACCESS CONTROL (RBAC) ---
-                if (!data.ownerUid) {
-                    // Reclaim ownership if the DB is blank
-                    userRole = 'owner';
-                    await setDoc(docRef, { ownerUid: currentUser.uid, ownerEmail: currentUser.email }, { merge: true });
-                } else if (data.ownerUid === currentUser.uid) {
-                    userRole = 'owner';
-                } else {
-                    const foundGuest = (data.guests || []).find(g => 
-                        (typeof g === 'string' ? g : g.email) === currentUser.email
-                    );
-                    if (foundGuest) {
-                        const roleLevel = typeof foundGuest === 'string' ? 'guest' : foundGuest.role;
-                        userRole = roleLevel === 'editor' ? 'editor' : 'guest';
-                    } else {
-                        userRole = 'none';
-                        alert("⚠️ Acceso Denegado. Tu correo (" + currentUser.email + ") no está en la lista de invitados de este tablero.");
-                        if(cloudListener) cloudListener();
-                        signOut(auth);
-                        return;
-                    }
-                }
-                
-                // Set memory state
-                const rawGuests = data.guests || [];
-                // Scrub potential [object Object] database stringification bug inherited from old versions
-                state.guests = rawGuests
-                    .filter(g => g !== '[object Object]')
-                    .map(g => typeof g === 'string' ? { email: g, role: 'guest' } : g)
-                    .filter(g => g && g.email);
-                
-                state.hourlyRate = data.hourlyRate || 0;
-                let finalLogs = data.logs || [];
-                
-                // --- QUICK RECOVERY MIGRATION SCRIPT ---
-                // Si el usuario tenía horas en su cuenta vieja, las inyectamos.
-                try {
-                    const oldRef = doc(db, 'users', currentUser.uid);
-                    const oldSnap = await getDoc(oldRef);
-                    if (oldSnap.exists()) {
-                        const oldData = oldSnap.data();
-                        let needsMerge = false;
-                        if (oldData.logs) {
-                            oldData.logs.forEach(oldLog => {
-                                if (!finalLogs.find(l => l.id === oldLog.id)) {
-                                    finalLogs.push(oldLog);
-                                    needsMerge = true;
-                                }
-                            });
-                        }
-                        if (oldData.hourlyRate && state.hourlyRate === 0) {
-                            state.hourlyRate = oldData.hourlyRate;
-                            needsMerge = true;
-                        }
-                        
-                        // Si tuvimos que recuperar datos, purgar el viejo y actualizar este nuevo en nube
-                        if (needsMerge) {
-                            finalLogs.sort((a, b) => new Date(b.date) - new Date(a.date));
-                            state.logs = finalLogs;
-                            updateUI(); // Pintar rapido
-                            await saveToCloud(); // Empujar arriba
-                        }
-                    }
-                } catch(err) {
-                    console.error("No se pudo migrar la db vieja", err);
-                }
-                
-                state.logs = finalLogs;
-                
-                // Do not override user input while they type the Rate, if currently focused
-                const isRateInputFocused = document.activeElement === DOM.hourlyRateInput;
-                if (!isRateInputFocused) {
-                    DOM.hourlyRateInput.value = state.hourlyRate || '';
-                }
-                
-                // Update table visibly instantly!
-                updateUI();
+                const ownerName = data.ownerName || data.ownerEmail || 'Desconocido';
+                availableWorkspaces.push({
+                    id: docSnap.id,
+                    name: `Tablero de ${ownerName.split('@')[0]}`,
+                    photo: data.ownerPhoto || '',
+                    isOwner: false
+                });
             }
         });
+    } catch (err) {}
+    
+    renderWorkspaceDropdown();
+}
+
+function renderWorkspaceDropdown() {
+    DOM.workspaceDropdown.innerHTML = '';
+    
+    availableWorkspaces.forEach(ws => {
+        const btn = document.createElement('div');
+        btn.style.display = 'flex';
+        btn.style.alignItems = 'center';
+        btn.style.gap = '10px';
+        btn.style.padding = '0.8rem';
+        btn.style.borderRadius = '8px';
+        btn.style.cursor = 'pointer';
         
-    } catch (e) {
-        console.error("Error cargando datos de Firebase", e);
-    }
+        if (ws.id === currentWorkspaceId) {
+            btn.style.background = 'rgba(59, 130, 246, 0.4)';
+            btn.style.border = '1px solid rgba(59, 130, 246, 0.8)';
+        } else {
+            btn.style.background = 'transparent';
+            btn.style.border = '1px solid transparent';
+            btn.addEventListener('mouseenter', () => btn.style.background = 'rgba(255,255,255,0.1)');
+            btn.addEventListener('mouseleave', () => btn.style.background = 'transparent');
+        }
+        
+        btn.addEventListener('click', () => {
+            if (ws.id !== currentWorkspaceId) {
+                DOM.userPhoto.style.transform = 'scale(0.8)';
+                setTimeout(() => DOM.userPhoto.style.transform = 'scale(1)', 200);
+                listenToWorkspace(ws.id);
+            }
+            DOM.workspaceDropdown.classList.add('hidden');
+        });
+        
+        const imgHost = ws.photo ? `<img src="${ws.photo}" style="width: 25px; height: 25px; border-radius: 50%;">` : '📁';
+        btn.innerHTML = `${imgHost} <span style="font-size: 0.9rem;">${ws.name}</span>`;
+        if (ws.isOwner) {
+            btn.innerHTML += `<span style="margin-left: auto; font-size: 0.7rem; color: #60a5fa;">DUEÑO</span>`;
+        }
+        
+        DOM.workspaceDropdown.appendChild(btn);
+    });
+}
+
+function listenToWorkspace(workspaceId) {
+    if (cloudListener) cloudListener();
+    currentWorkspaceId = workspaceId;
+    renderWorkspaceDropdown();
+    
+    const docRef = doc(db, 'workspaces', workspaceId);
+    cloudListener = onSnapshot(docRef, async (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            
+            // --- ROLE BASED ACCESS CONTROL (RBAC) ---
+            if (!data.ownerUid) {
+                userRole = 'owner';
+                await setDoc(docRef, { ownerUid: currentUser.uid, ownerEmail: currentUser.email, ownerPhoto: currentUser.photoURL || '', ownerName: currentUser.displayName || currentUser.email }, { merge: true });
+            } else if (data.ownerUid === currentUser.uid) {
+                userRole = 'owner';
+            } else {
+                const foundGuest = (data.guests || []).find(g => 
+                    (typeof g === 'string' ? g : g.email) === currentUser.email
+                );
+                if (foundGuest) {
+                    const roleLevel = typeof foundGuest === 'string' ? 'guest' : foundGuest.role;
+                    userRole = roleLevel === 'editor' ? 'editor' : 'guest';
+                } else {
+                    userRole = 'none';
+                    alert("⚠️ Acceso Denegado. Acabas de ser desconectado / removido de este tablero.");
+                    initWorkspaceLogic();
+                    return;
+                }
+            }
+            
+            // Set memory state
+            const rawGuests = data.guests || [];
+            state.guests = rawGuests
+                .filter(g => g !== '[object Object]')
+                .map(g => typeof g === 'string' ? { email: g, role: 'guest' } : g)
+                .filter(g => g && g.email);
+            
+            state.hourlyRate = data.hourlyRate || 0;
+            state.logs = data.logs || [];
+            
+            const isRateInputFocused = document.activeElement === DOM.hourlyRateInput;
+            if (!isRateInputFocused) {
+                DOM.hourlyRateInput.value = state.hourlyRate || '';
+            }
+            
+            updateUI();
+        } else if (workspaceId !== currentUser.uid) {
+            alert("⚠️ Este tablero compartido fue borrado.");
+            initWorkspaceLogic();
+        }
+    });
 }
 
 async function saveToCloud() {
-    if (!currentUser || userRole === 'guest') return; // Guests aren't allowed to sync writes to cloud logic directly anyway, but protect locally just in case
+    if (!currentUser || userRole === 'guest') return; 
     
     try {
-        const docRef = doc(db, 'workspaces', 'global_tracker');
-        await setDoc(docRef, {
+        const docRef = doc(db, 'workspaces', currentWorkspaceId);
+        const flatGuestEmails = state.guests.map(g => typeof g === 'string' ? g : g.email);
+        
+        const payload = {
             hourlyRate: state.hourlyRate,
             logs: state.logs,
             guests: state.guests,
+            guestEmails: flatGuestEmails,
             lastUpdated: new Date().toISOString()
-        }, { merge: true });
+        };
+        
+        if (userRole === 'owner') {
+            payload.ownerPhoto = currentUser.photoURL || '';
+            payload.ownerName = currentUser.displayName || currentUser.email;
+        }
+        
+        await setDoc(docRef, payload, { merge: true });
     } catch (e) {
         console.error("Error guardando en Firebase", e);
-        alert("Nota: Tus datos no se lograron guardar en la nube (Posiblemente necesitas habilitar Firestore o ponerlo en Modo Prueba en tu Consola de Firebase).");
+        alert("Nota: Tus datos no se lograron guardar en la nube.");
     }
 }
 
@@ -250,6 +311,20 @@ function setupEventListeners() {
             alert("Error de Firebase: " + err.message + "\n\nNota: Si estás abriendo el archivo localmente (doble clic), Firebase bloqueará el acceso. Prueba desde GitHub Pages.");
         }
     });
+    
+    if (DOM.userPhoto) {
+        DOM.userPhoto.addEventListener('click', () => {
+            if (availableWorkspaces && availableWorkspaces.length > 0) {
+                DOM.workspaceDropdown.classList.toggle('hidden');
+            }
+        });
+        // Click outside closes dropdown
+        document.addEventListener('click', (e) => {
+            if (!DOM.userPhoto.contains(e.target) && !DOM.workspaceDropdown.contains(e.target)) {
+                DOM.workspaceDropdown.classList.add('hidden');
+            }
+        });
+    }
     
     DOM.logoutBtn.addEventListener('click', () => {
         if(confirm('¿Seguro que deseas cerrar la sesión en este dispositivo?')) {
