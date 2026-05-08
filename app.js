@@ -44,7 +44,9 @@ const DOM = {
     
     logHoursForm: document.getElementById('logHoursForm'),
     dateInput: document.getElementById('dateInput'),
-    hoursInput: document.getElementById('hoursInput'),
+    timeInInput: document.getElementById('timeInInput'),
+    timeOutInput: document.getElementById('timeOutInput'),
+    dashboardMonthFilter: document.getElementById('dashboardMonthFilter'),
     
     logsTable: document.getElementById('logsTable'),
     logsTableBody: document.getElementById('logsTableBody'),
@@ -98,7 +100,7 @@ async function loadDataFromCloud() {
     if (cloudListener) cloudListener();
     
     try {
-        const docRef = doc(db, 'users', currentUser.uid);
+        const docRef = doc(db, 'workspaces', 'global_tracker');
         const snapshot = await getDoc(docRef);
         
         // Logical migration only on first read:
@@ -148,7 +150,7 @@ async function loadDataFromCloud() {
 async function saveToCloud() {
     if (!currentUser) return;
     try {
-        const docRef = doc(db, 'users', currentUser.uid);
+        const docRef = doc(db, 'workspaces', 'global_tracker');
         await setDoc(docRef, {
             hourlyRate: state.hourlyRate,
             logs: state.logs,
@@ -182,6 +184,9 @@ function setupEventListeners() {
     DOM.logHoursForm.addEventListener('submit', handleLogHours);
     if(DOM.generateInvoiceBtn) {
         DOM.generateInvoiceBtn.addEventListener('click', handleGenerateInvoice);
+    }
+    if(DOM.dashboardMonthFilter) {
+        DOM.dashboardMonthFilter.addEventListener('change', renderDashboard);
     }
     
     if(DOM.forceSyncBtn) {
@@ -234,13 +239,29 @@ function handleLogHours(e) {
     e.preventDefault();
     
     const date = DOM.dateInput.value;
-    const hours = parseFloat(DOM.hoursInput.value);
+    const timeIn = DOM.timeInInput.value;
+    const timeOut = DOM.timeOutInput.value;
     
-    if (!date || isNaN(hours) || hours <= 0) return;
+    if (!date || !timeIn || !timeOut) return;
+    
+    const [inH, inM] = timeIn.split(':').map(Number);
+    const [outH, outM] = timeOut.split(':').map(Number);
+    
+    let diffMins = (outH * 60 + outM) - (inH * 60 + inM);
+    if(diffMins < 0) diffMins += 24 * 60; // cruce medianoche
+    
+    const hours = Number((diffMins / 60).toFixed(2));
+    
+    if (hours === 0) {
+        alert("La hora de salida no puede ser exactamente igual a la de entrada.");
+        return;
+    }
     
     const newLog = {
         id: Date.now().toString(),
         date: date,
+        timeIn: timeIn,
+        timeOut: timeOut,
         hours: hours
     };
     
@@ -250,8 +271,8 @@ function handleLogHours(e) {
     saveToCloud();
     updateUI();
     
-    DOM.hoursInput.value = '';
-    DOM.hoursInput.focus();
+    DOM.timeOutInput.value = '';
+    DOM.timeInInput.focus();
 }
 
 // Assign specifically to Window for onClick HTML compatibility
@@ -265,9 +286,9 @@ window.deleteLog = function(id) {
 
 // ====== UI RENDERING ======
 function updateUI() {
+    populateMonths();
     renderDashboard();
     renderLogsTable();
-    populateMonths();
 }
 
 function populateMonths() {
@@ -279,8 +300,13 @@ function populateMonths() {
     });
     
     const sorted = Array.from(months).sort().reverse();
+    const currentDashFilter = DOM.dashboardMonthFilter ? DOM.dashboardMonthFilter.value : "all";
     
     DOM.invoiceMonth.innerHTML = '';
+    if(DOM.dashboardMonthFilter) {
+        DOM.dashboardMonthFilter.innerHTML = '<option value="all">Histórico Global</option>';
+    }
+    
     if (sorted.length === 0) {
         DOM.invoiceMonth.innerHTML = '<option value="">No hay registros</option>';
         DOM.generateInvoiceBtn.disabled = true;
@@ -294,12 +320,28 @@ function populateMonths() {
         const [year, month] = m.split('-');
         const dateObj = new Date(year, parseInt(month) - 1, 1);
         const name = dateObj.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+        const capName = name.charAt(0).toUpperCase() + name.slice(1);
         
-        const option = document.createElement('option');
-        option.value = m;
-        option.textContent = name.charAt(0).toUpperCase() + name.slice(1);
-        DOM.invoiceMonth.appendChild(option);
+        const optInv = document.createElement('option');
+        optInv.value = m;
+        optInv.textContent = capName;
+        DOM.invoiceMonth.appendChild(optInv);
+        
+        if(DOM.dashboardMonthFilter) {
+            const optDash = document.createElement('option');
+            optDash.value = m;
+            optDash.textContent = capName;
+            DOM.dashboardMonthFilter.appendChild(optDash);
+        }
     });
+    
+    if(DOM.dashboardMonthFilter) {
+        if (Array.from(DOM.dashboardMonthFilter.options).some(opt => opt.value === currentDashFilter && currentDashFilter !== 'all')) {
+            DOM.dashboardMonthFilter.value = currentDashFilter;
+        } else if (sorted.length > 0) {
+            DOM.dashboardMonthFilter.value = sorted[0]; // Auto pick default latest explicitly!
+        }
+    }
 }
 
 function handleGenerateInvoice() {
@@ -360,10 +402,17 @@ function handleGenerateInvoice() {
 }
 
 function renderDashboard() {
-    const totalHours = state.logs.reduce((acc, log) => acc + log.hours, 0);
+    const filterData = DOM.dashboardMonthFilter ? DOM.dashboardMonthFilter.value : 'all';
+    let filteredLogs = state.logs;
+    
+    if(filterData && filterData !== 'all') {
+        filteredLogs = state.logs.filter(log => log.date.substring(0, 7) === filterData);
+    }
+
+    const totalHours = filteredLogs.reduce((acc, log) => acc + log.hours, 0);
     const totalEarnings = totalHours * state.hourlyRate;
     
-    DOM.totalHoursDisplay.textContent = totalHours.toFixed(totalHours % 1 === 0 ? 0 : 1);
+    DOM.totalHoursDisplay.textContent = totalHours.toFixed(totalHours % 1 === 0 ? 0 : 2);
     const formattedEarnings = '$ ' + totalEarnings.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     DOM.totalEarningsDisplay.textContent = formattedEarnings;
 }
@@ -386,9 +435,12 @@ function renderLogsTable() {
         const dateObj = new Date(log.date + 'T00:00:00');
         const dateStr = dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
         const earning = (log.hours * state.hourlyRate).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        // Compatibilidad con logs viejos
+        const timeStr = (log.timeIn && log.timeOut) ? `${log.timeIn} - ${log.timeOut}` : 'Manual';
         
         row.innerHTML = `
             <td><strong>${dateStr}</strong></td>
+            <td>${timeStr}</td>
             <td>${log.hours} h</td>
             <td>$ ${earning}</td>
             <td>
